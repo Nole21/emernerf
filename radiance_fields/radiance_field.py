@@ -139,9 +139,10 @@ class RadianceField(nn.Module):
             in_dims=geometry_feature_dim
             + self.direction_encoding.n_output_dims
             + (
-                appearance_embedding_dim
-                if self.enable_cam_embedding or self.enable_img_embedding
-                else 0  # 2 or 0?
+                # appearance_embedding_dim
+                # if self.enable_cam_embedding or self.enable_img_embedding
+                # else 0  # 2 or 0?
+                0
             ),
             out_dims=3,
             num_layers=3,
@@ -648,13 +649,18 @@ class RadianceField(nn.Module):
                 appearance_embedding = torch.ones(
                     (*directions.shape[:-1], self.appearance_embedding_dim),
                     device=directions.device,
-                ) * self.appearance_embedding.weight.mean(dim=0)
-            h = torch.cat([h, appearance_embedding], dim=-1)
-
-        rgb = self.rgb_head(torch.cat([h, geo_feats], dim=-1))
+                ) * self.appearance_embedding.weight.mean(dim=0) # [N_rays, N_samples, 16]
+            # h = torch.cat([h, appearance_embedding], dim=-1)
+  
+            affine_transformation = self.exposure_mlp(appearance_embedding)
+        rgb = self.rgb_head(torch.cat([h, geo_feats], dim=-1)) # [N_rays, N_samples, 3]
         # exposure affine transformation
-        
-        rgb = F.sigmoid(rgb)
+        linear_transformation = affine_transformation[...,:9].reshape(*affine_transformation.shape[:-1],3,3)
+        bias = affine_transformation[...,9:]
+        def affine_transform(rgb):
+            affined_rgb = (linear_transformation @ rgb.unsqueeze(-1)).squeeze(-1) + bias
+            return affined_rgb
+        rgb = F.sigmoid(affine_transform(rgb))
         results = {"rgb": rgb}
 
         if self.dynamic_xyz_encoder is not None:
@@ -662,7 +668,7 @@ class RadianceField(nn.Module):
                 dynamic_geo_feats is not None
             ), "Dynamic geometry features are not provided."
             dynamic_rgb = self.rgb_head(torch.cat([h, dynamic_geo_feats], dim=-1))
-            dynamic_rgb = F.sigmoid(dynamic_rgb)
+            dynamic_rgb = F.sigmoid(affine_transform(dynamic_rgb))
             results["dynamic_rgb"] = dynamic_rgb
         return results
 

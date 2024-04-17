@@ -1,7 +1,7 @@
 scene_idx=1
 start_timestep=0
 end_timestep=-1
-project=nvs
+project=nvs_affine
 num_iters=25000
 python train_emernerf.py \
     --config_file configs/default_flow.yaml \

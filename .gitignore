@@ -91,7 +91,15 @@ ipython_config.py
 experiments/
 
 core
-
+*.pyc
+**/__pycache__/
+datasets/__pycache__
+datasets/base/__pycache__
+__pycache__
+loss/__pycache__
+radiance_fields/__pycache__
+third_party/__pycache__
+utils/__pycache__
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:

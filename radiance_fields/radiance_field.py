@@ -122,21 +122,18 @@ class RadianceField(nn.Module):
         else:
             self.appearance_embedding = None
 
+
         if self.appearance_embedding:
             self.exposure_mlp = MLP(
-                in_dims=(appearance_embedding_dim + self.time_encoding.n_output_dims ),
+                in_dims=(appearance_embedding_dim + 11 ),
                 out_dims=12,
                 num_layers=3,
-                hidden_dims=128
+                hidden_dims=256
             )
+
         # direction encoding
         self.direction_encoding = SinusoidalEncoder(
             n_input_dims=3, min_deg=0, max_deg=4
-        )
-
-        # time encoding 
-        self.time_encoding = SinusoidalEncoder(
-            n_input_dims=1, min_deg=0, max_deg=4
         )
 
         # ======== Color Head ======== #
@@ -666,7 +663,11 @@ class RadianceField(nn.Module):
             if normed_timestamps.shape[-1] != 1:
                 normed_timestamps = normed_timestamps.unsqueeze(-1)
             # time encoding like positional encoding
-            normed_timestamps_encoding = self.time_encoding(normed_timestamps.reshape(-1,normed_timestamps.shape[-1])).view(*normed_timestamps.shape[:-1],-1)
+
+            time_encoding = SinusoidalEncoder(
+            n_input_dims=1, min_deg=0, max_deg=4 )
+            
+            normed_timestamps_encoding = time_encoding(normed_timestamps.reshape(-1,normed_timestamps.shape[-1])).view(*normed_timestamps.shape[:-1],-1)
             appearance_embedding = torch.cat((appearance_embedding, normed_timestamps_encoding), dim=-1)
 
             affine_transformation = self.exposure_mlp(appearance_embedding)

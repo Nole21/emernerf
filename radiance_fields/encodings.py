@@ -93,6 +93,7 @@ class SinusoidalEncoder(XYZ_Encoder):
         """
         if self.max_deg == self.min_deg:
             return x
+        self.scales = self.scales.to(x.device)
         xb = torch.reshape(
             (x[..., None, :] * self.scales[:, None]),
             list(x.shape[:-1])

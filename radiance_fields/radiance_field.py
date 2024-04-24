@@ -124,14 +124,19 @@ class RadianceField(nn.Module):
 
         if self.appearance_embedding:
             self.exposure_mlp = MLP(
-                in_dims=appearance_embedding_dim,
+                in_dims=(appearance_embedding_dim + self.time_encoding.n_output_dims ),
                 out_dims=12,
                 num_layers=3,
-                hidden_dims=256
+                hidden_dims=128
             )
         # direction encoding
         self.direction_encoding = SinusoidalEncoder(
             n_input_dims=3, min_deg=0, max_deg=4
+        )
+
+        # time encoding 
+        self.time_encoding = SinusoidalEncoder(
+            n_input_dims=1, min_deg=0, max_deg=4
         )
 
         # ======== Color Head ======== #
@@ -651,8 +656,21 @@ class RadianceField(nn.Module):
                     device=directions.device,
                 ) * self.appearance_embedding.weight.mean(dim=0) # [N_rays, N_samples, 16]
             # h = torch.cat([h, appearance_embedding], dim=-1)
-  
+                
+            # concatenate time encoding to simulate variation of lighting with time
+            if "normed_timestamps" in data_dict:
+                normed_timestamps = data_dict["normed_timestamps"]
+            elif "lidar_normed_timestamps" in data_dict:
+                # we use `lidar_` prefix as an identifier to skip querying other heads
+                normed_timestamps = data_dict["lidar_normed_timestamps"]
+            if normed_timestamps.shape[-1] != 1:
+                normed_timestamps = normed_timestamps.unsqueeze(-1)
+            # time encoding like positional encoding
+            normed_timestamps_encoding = self.time_encoding(normed_timestamps.reshape(-1,normed_timestamps.shape[-1])).view(*normed_timestamps.shape[:-1],-1)
+            appearance_embedding = torch.cat((appearance_embedding, normed_timestamps_encoding), dim=-1)
+
             affine_transformation = self.exposure_mlp(appearance_embedding)
+
         rgb = self.rgb_head(torch.cat([h, geo_feats], dim=-1)) # [N_rays, N_samples, 3]
         # exposure affine transformation
         linear_transformation = affine_transformation[...,:9].reshape(*affine_transformation.shape[:-1],3,3)
